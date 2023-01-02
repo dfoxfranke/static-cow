@@ -6,7 +6,7 @@ that whether a particular object is borrowed or owned can be specified through a
 generic type parameter. 
 
 <div style="width: 20em; margin-left: auto; margin-right: auto;">
-<img src="./images/mascot.png" alt="Mascot"/>
+<img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/85022860af3104b6cd00a675ab6dd8718367db8b/static-cow/images/mascot.png" alt="Mascot"/>
 </div>
 
 ## Documentation
