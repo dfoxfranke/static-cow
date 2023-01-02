@@ -1,0 +1,8 @@
+[package]
+name = "static-cow-derive"
+version = "0.0.0"
+authors = ["Daniel Fox Franke <dfoxfranke@gmail.com>"]
+edition = "2021"
+description = "This crate is currently empty. It's namesquatted for future use in providing derive macros for static-cow."
+repository = "https://github.com/dfoxfranke/static-cow"
+license = "Apache-2.0 WITH LLVM-exception"

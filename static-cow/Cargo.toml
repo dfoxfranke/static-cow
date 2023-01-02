@@ -1,0 +1,10 @@
+[package]
+name = "static-cow"
+version = "0.1.0"
+authors = ["Daniel Fox Franke <dfoxfranke@gmail.com>"]
+edition = "2021"
+description = "`Cow` at the type level: a framework of traits for writing types that are generic over ownership of their contents."
+readme = "README.md"
+repository = "https://github.com/dfoxfranke/static-cow"
+license = "Apache-2.0 WITH LLVM-exception"
+categories = ["memory-management", "no-std", "rust-patterns"]
