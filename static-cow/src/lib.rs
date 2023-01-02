@@ -4,6 +4,10 @@
 //! This crate provides a framework of traits for writing types that are generic
 //! over ownership of their contents.
 //! 
+//! <div style="width: 20em; margin-left: auto; margin-right: auto;">
+//! <img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/85022860af3104b6cd00a675ab6dd8718367db8b/static-cow/images/mascot.png" alt="Mascot"/>
+//! </div>
+//! 
 //! # API Overview
 //! ## `ToOwning` and `IntoOwning`
 //! [`ToOwning`] and [`IntoOwning`] are the most general traits provided by this
@@ -840,6 +844,10 @@ where
 }
 
 /// A zero-sized type which implements [`IntoOwning`].
+/// 
+/// <div style="width: 20em; margin-left: auto; margin-right: auto;">
+/// <img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/85022860af3104b6cd00a675ab6dd8718367db8b/static-cow/images/cow_phantom.png" alt="Cow phantom"/>
+/// </div>
 ///
 /// Structures with fields that are generic over [`StaticCow`]`<'a, B>` often
 /// have no fields that directly mention `'a` or `B`, so they need add a phantom
