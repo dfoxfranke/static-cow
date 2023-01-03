@@ -4,8 +4,8 @@
 //! This crate provides a framework of traits for writing types that are generic
 //! over ownership of their contents.
 //! 
-//! <div style="width: 20em; margin-left: auto; margin-right: auto;">
-//! <img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/85022860af3104b6cd00a675ab6dd8718367db8b/static-cow/images/mascot.png" alt="Mascot"/>
+//! <div style="max-width: 20em; margin-left: auto; margin-right: auto;">
+//! <img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/10cffdd130d62af2ee0c437bc06500cfe8123417/static-cow/images/mascot.webp" alt="Mascot"/>
 //! </div>
 //! 
 //! # API Overview
@@ -845,8 +845,8 @@ where
 
 /// A zero-sized type which implements [`IntoOwning`].
 /// 
-/// <div style="width: 20em; margin-left: auto; margin-right: auto;">
-/// <img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/85022860af3104b6cd00a675ab6dd8718367db8b/static-cow/images/cow_phantom.png" alt="Cow phantom"/>
+/// <div style="max-width: 20em; margin-left: auto; margin-right: auto;">
+/// <img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/10cffdd130d62af2ee0c437bc06500cfe8123417/static-cow/images/cow_phantom.webp" alt="Cow phantom"/>
 /// </div>
 ///
 /// Structures with fields that are generic over [`StaticCow`]`<'a, B>` often
