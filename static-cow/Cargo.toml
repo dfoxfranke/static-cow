@@ -1,6 +1,6 @@
 [package]
 name = "static-cow"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Daniel Fox Franke <dfoxfranke@gmail.com>"]
 edition = "2021"
 description = "`Cow` at the type level: a framework of traits for writing types that are generic over ownership of their contents."
