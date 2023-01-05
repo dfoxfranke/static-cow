@@ -53,7 +53,7 @@ impl<'b, E> FlexIter<'b, Borrowed<'b, [E]>, E> {
 impl<'a, 'o, S, E> Iterator for FlexIter<'a, S, E>
 where
     E: 'o + Clone,
-    S: StaticCow<'a, 'o, [E]>,
+    S: StaticCow<'o, [E]>,
 {
     type Item = E;
 

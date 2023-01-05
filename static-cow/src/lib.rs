@@ -353,7 +353,7 @@ where
 /// StaticCow<'a, 'o, B>`. Then, wherever the ownedness of `S` is known at
 /// compile-time, the compiler can generate an appropriately-specialized version
 /// of the function.
-pub trait StaticCow<'a, 'o, B>: Deref<Target = B> + IntoOwning<'o>
+pub trait StaticCow<'o, B>: Deref<Target = B> + IntoOwning<'o>
 where
     B: 'o + ToOwned + ?Sized,
 {
@@ -384,7 +384,7 @@ where
     }
 
     /// Converts `self` into its dynamic equivalent as a [`Cow`].
-    fn into_cow(self) -> Cow<'a, B>;
+    fn into_cow<'a>(self) -> Cow<'a, B> where Self: 'a, 'a: 'o;
 
     /// Converts `self` into a `B::Owned`, cloning only if necessary.
     fn into_owned(self) -> B::Owned;
@@ -459,7 +459,7 @@ where
     }
 }
 
-impl<'b, 'o, B> StaticCow<'b, 'o, B> for Borrowed<'b, B>
+impl<'b, 'o, B> StaticCow<'o, B> for Borrowed<'b, B>
 where
     B: 'o + ToOwned + ?Sized,
 {
@@ -473,7 +473,7 @@ where
         MutIfOwned::Const(self.0)
     }
     #[inline]
-    fn into_cow(self) -> Cow<'b, B> {
+    fn into_cow<'a>(self) -> Cow<'a, B> where Self: 'a{
         Cow::Borrowed(self.0)
     }
 
@@ -530,7 +530,7 @@ where
     }
 }
 
-impl<'o, B> StaticCow<'o, 'o, B> for Owned<'o, B>
+impl<'o, B> StaticCow<'o, B> for Owned<'o, B>
 where
     B: 'o + ToOwned + ?Sized,
 {
@@ -545,7 +545,7 @@ where
     }
 
     #[inline]
-    fn into_cow(self) -> Cow<'o, B> {
+    fn into_cow<'a> (self) -> Cow<'a, B> where Self: 'a {
         Cow::Owned(self.0)
     }
 
@@ -555,7 +555,7 @@ where
     }
 }
 
-impl<'a, 'o, B> StaticCow<'a, 'o, B> for Cow<'a, B>
+impl<'a, 'o, B> StaticCow<'o, B> for Cow<'a, B>
 where
     'a: 'o,
     B: 'o + ToOwned + ?Sized,
@@ -576,7 +576,7 @@ where
         }
     }
     #[inline]
-    fn into_cow(self) -> Cow<'a, B> {
+    fn into_cow<'b>(self) -> Cow<'b, B> where Self: 'b {
         self
     }
 
