@@ -2,20 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 use static_cow::*;
-use std::borrow::Borrow;
+use std::{borrow::Borrow, marker::PhantomData};
 
-struct FlexIter<'a, S, E> {
+struct FlexIter<S, E> {
     inner: S,
     index: usize,
-    _phantom: CowPhantom<'a, [E]>,
+    _phantom: PhantomData<E>,
 }
 
-impl<'a, 'o, S, E> ToOwning<'o> for FlexIter<'a, S, E>
+impl<S, E> ToOwning for FlexIter<S, E>
 where
-    S: ToOwning<'o>,
-    E : 'o,
+    S: ToOwning,
 {
-    type Owning = FlexIter<'o, S::Owning, E>;
+    type Owning = FlexIter<S::Owning, E>;
 
     fn to_owning(&self) -> Self::Owning {
         FlexIter {
@@ -26,10 +25,9 @@ where
     }
 }
 
-impl<'a, 'o, S, E> IntoOwning<'o> for FlexIter<'a, S, E>
+impl<S, E> IntoOwning for FlexIter<S, E>
 where
-    S: IntoOwning<'o>,
-    E: 'o
+    S: IntoOwning,
 {
     fn into_owning(self) -> Self::Owning {
         FlexIter {
@@ -40,20 +38,20 @@ where
     }
 }
 
-impl<'b, E> FlexIter<'b, Borrowed<'b, [E]>, E> {
-    fn new(slice: &'b [E]) -> FlexIter<'b, Borrowed<'b, [E]>, E> {
+impl<'b, E> FlexIter<Borrowed<'b, [E]>, E> {
+    fn new(slice: &'b [E]) -> FlexIter<Borrowed<'b, [E]>, E> {
         FlexIter {
             inner: Borrowed(slice),
             index: slice.len(),
-            _phantom: CowPhantom::default(),
+            _phantom: PhantomData::default(),
         }
     }
 }
 
-impl<'a, 'o, S, E> Iterator for FlexIter<'a, S, E>
+impl<S, E> Iterator for FlexIter<S, E>
 where
-    E: 'o + Clone,
-    S: StaticCow<'o, [E]>,
+    E: Clone,
+    S: StaticCow<[E]>,
 {
     type Item = E;
 

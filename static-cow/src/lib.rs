@@ -3,73 +3,66 @@
 
 //! This crate provides a framework of traits for writing types that are generic
 //! over ownership of their contents.
-//! 
+//!
 //! <div style="max-width: 20em; margin-left: auto; margin-right: auto;">
 //! <img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/10cffdd130d62af2ee0c437bc06500cfe8123417/static-cow/images/mascot.webp" alt="Mascot"/>
 //! </div>
-//! 
+//!
 //! # API Overview
 //! ## `ToOwning` and `IntoOwning`
 //! [`ToOwning`] and [`IntoOwning`] are the most general traits provided by this
 //! crate, and are the ones that you will implement on your own types.
 //! `ToOwning` is a generalization of [`std::borrow::ToOwned`](ToOwned):
-//! 
+//!
 //! ```ignore
-//! pub trait ToOwning<'o> {
-//!     type Owning: 'o;
+//! pub trait ToOwning {
+//!     type Owning;
 //!     fn to_owning(&self) -> Self::Owning;
 //! }
 //! ```
-//! 
+//!
 //! Unlike `ToOwned`, it doesn't require that `Owning: Borrow<Self>`. Hence
 //! `ToOwning` represents a type that can be converted into some version of
 //! itself which owns its contents,  but which does not necessarily let you get
 //! a reference to the original borrowing type back out from the owning one.
-//! 
-//! The lifetime parameter `'o` is a bound on the lifetime of the *owning* type.
-//! In most circumstances, this can be `'static`, unless the owning type still
-//! contains some resources which are borrowed. Wherever you see a lifetime
-//! parameter named `'o` anywhere in this crate documentation, you can mentally
-//! substitute `'static` unless you are doing something very unusual.
-//! 
+//!
 //! `ToOwning` has a blanket implementation for `T where T : ToOwned + ?Sized`.
 //! The blanket implementation does the obvious thing of letting `Owning =
 //! Owned` and `to_owning = to_owned`.
-//! 
+//!
 //! [`IntoOwning`], then is self-explanatory from its declaration:
-//! 
+//!
 //! ```ignore
-//! pub trait IntoOwning<'o>: ToOwning<'o> + Sized {
+//! pub trait IntoOwning ToOwning + Sized {
 //!     fn into_owning(self) -> Self::Owning;
 //! }
 //! ```
-//! 
+//!
 //! `IntoOwning` has a blanket implementation for `T where T : Clone`, which
 //! makes `into_owning` the identity function. Therefore, if your type already
 //! implements [`Clone`], you get an `IntoOwning` implementation automatically.
 //! If you implement `IntoOwning` manually, you cannot implement `Clone`.
-//! 
+//!
 //! User-defined types which implement `ToOwning` and `IntoOwning` generally
 //! should just call `.to_owning()` and `.into_owning()` on each of their
 //! fields. Eventually there will be derive macros for this, but I haven't
 //! written them yet.
-//! 
+//!
 //! ## `StaticCow`
 //! [`StaticCow`], this crate's namesake, is [`std::borrow::Cow`](Cow) lifted to
 //! the type level. While `Cow` is an enum, `StaticCow` is a trait. While
 //! `Cow::Borrowed` and `Cow::Owned` are enum variants, this crate's
 //! [`Borrowed`] and [`Owned`] are tuple structs which implement `StaticCow` (so
 //! also does `Cow`). So instead of having a struct with a field `field: Cow<'a,
-//! B>`, where `B: ''o` (remember, think "usually `'static`" when you see `'o`),
-//! you can declare that field as `field: S` and let `S` be a generic parameter
-//! `S: StaticCow<'a, 'o, B>`. Then, wherever the ownedness of `S` is known at
+//! B>`, you can declare that field as `field: S` and let `S` be a generic
+//! parameter `S: StaticCow<B>`. Then, wherever the ownedness of `S` is known at
 //! compile-time, the compiler can generate an appropriately-specialized version
 //! of the function.
-//! 
+//!
 //! Like `Cow`, `StaticCow` requires `B : ToOwned`, which allows it to have
 //! `Deref<Target=B>` for a supertrait. `IntoOwning` is another supertrait of
 //! `StaticCow`.
-//! 
+//!
 //! ## `Idempotent`
 //! Using [`Idempotent`] as a bound allows you to be generic over types that
 //! implement [`IntoOwning`] but not [`ToOwned`].
@@ -80,12 +73,12 @@
 //! ToOwned` so that they can rely on having `B::Owned : Borrow<B>`.
 //!
 //! `Idempotent` has weaker requirements, so its capabilities are necessarily
-//! weaker as well, and it does not inherit from `Deref`. [`ToOwning`]`<'o>`
-//! places no constraints other than `'o` on `Owning`, which means that as far
-//! as the type system is concerned, `.into_owning()` is just a completely
-//! arbitrary conversion. So, you can't do anything useful with a type that
-//! might be `T` or might be `T::Owning` but you don't know which, because they
-//! don't promise to have any traits in common.
+//! weaker as well, and it does not inherit from `Deref`. [`ToOwning`]` places
+//! no constraints on `Owning`, which means that as far as the type system is
+//! concerned, `.into_owning()` is just a completely arbitrary conversion. So,
+//! you can't do anything useful with a type that might be `T` or might be
+//! `T::Owning` but you don't know which, because they don't promise to have any
+//! traits in common.
 //!
 //! `Idempotent` puts back just enough information that it can be a useful
 //! bound:
@@ -100,7 +93,7 @@
 //! [`Keep`]`<T>`, which holds a `T::Owning`; and by [`ChangeOrKeep`]`<T>` which
 //! might hold either, determined at runtime. Calling `.to_owning()` or
 //! `.into_owning()` on an `Idempotent<T>` always gives a `Keep<T>`.
-//! 
+//!
 //! # Example
 //! In this example, we'll implement a slice iterator which returns the slice's
 //! elements in reverse. Initially, it'll borrow the slice and clone its
@@ -108,34 +101,33 @@
 //! at any time during iteration you can change it into an iterator which owns a
 //! [`Vec`](alloc::vec::Vec). It will then pop the elements it returns off the
 //! end of the `Vec`, without cloning them.
-//! 
+//!
 //! For starters, we'll declare our flexible iterator:
 //! ```ignore
-//! struct FlexIter<'a, S, E> {
+//! struct FlexIter<S, E> {
 //!     inner: S,
 //!     index: usize,
-//!     _phantom: CowPhantom<'a, [E]>,
+//!     _phantom: PhantomData<[E]>,
 //! }
 //! ```
-//! 
+//!
 //! `E` is the type of the slice's elements. And although the constraint doesn't
 //! appear in the struct declaration, `S` will be an implementation of
-//! `StaticCow<'a, 'o, [E]>`. Concretely, `S` will be either `Borrowed<'b,
-//! [E]>`, which wraps a `&'b [E]`, or it will be `Owned<[E]>`, which wraps a
-//! `Vec<E>`. `index` is one greater than the index of the next element we'll
-//! return, and `_phantom` is a zero-sized object which has to be there to
-//! satisfy the typechecker by having the parameters `'a` and `E` appear
-//! somewhere in the struct's fields.
-//! 
+//! `StaticCow<[E]>`. Concretely, `S` will be either `Borrowed<'b, [E]>`, which
+//! wraps a `&'b [E]`, or it will be `Owned<[E]>`, which wraps a `Vec<E>`.
+//! `index` is one greater than the index of the next element we'll return, and
+//! `_phantom` is a zero-sized object which has to be there to satisfy the
+//! typechecker by having the parameter `E` appear somewhere in the struct's
+//! fields.
+//!
 //! Now we'll create [`ToOwning`] and [`IntoOwning`] instances for `FlexIter`.
 //! ```ignore
-//! impl<'a, 'o, S, E> ToOwning<'o> for FlexIter<'a, S, E>
+//! impl<S, E> ToOwning for FlexIter<S, E>
 //! where
-//!     S: ToOwning<'o>,
-//!     E : 'o,
+//!     S: ToOwning,
 //! {
-//!     type Owning = FlexIter<'o, S::Owning, E>;
-//! 
+//!     type Owning = FlexIter<S::Owning, E>;
+//!
 //!     fn to_owning(&self) -> Self::Owning {
 //!         FlexIter {
 //!             inner: self.inner.to_owning(),
@@ -144,11 +136,10 @@
 //!         }
 //!     }
 //! }
-//! 
-//! impl<'a, 'o, S, E> IntoOwning<'o> for FlexIter<'a, S, E>
+//!
+//! impl<S, E> IntoOwning for FlexIter<S, E>
 //! where
-//!     S: IntoOwning<'o>,
-//!     E: 'o
+//!     S: IntoOwning,
 //! {
 //!     fn into_owning(self) -> Self::Owning {
 //!         FlexIter {
@@ -159,31 +150,16 @@
 //!     }
 //! }
 //! ```
-//! 
-//! You can see that the method implementations are completely rote, but all
-//! these lifetimes flying around may be confusing. `'o` is a lifetime bound on
-//! `E`, the type of the slice's elements. If the elements are just data, say,
-//! `u32`, then `'o` can be `'static`. But if we have a slice full of
-//! references, say, `&'x u32`, then `'o` is bounded by `'x`. `'a` is a lifetime
-//! bound on the slice we're iterating over. So, if what we're given is a `&'b
-//! [E]`, then `'a` is bounded by `'b`. But once we call `to_owned()` on the
-//! slice, which gives us a `Vec<E>`, now `'a` is bounded only by `'o`.
-//! 
-//! Thus we can understand the implementation constraints and the type
-//! declaration for `Owning`. We need an `S` which implements `ToOwning<'o>`,
-//! and an `E` which can live up to `'o`. Concretely, `S` will be `Borrowed<'a,
-//! [E]>`, which is a transparent wrapper around `&'a [E]`. This type does in
-//! fact implement `ToOwning<'o>`, handing us back an `Owned<'o, [E]>` which is
-//! a transparent wrapper around `[E]::Owned`, i.e., `Vec<E>`.  Given that these
-//! constraints are satisfied, we can turn a `FlexIter<'a, S, E>` into a
-//! `FlexIter<'o, S::Owning, E>`. Concretely, supposing `E` is `u32` so `'o` is
-//! `'static`, we can turn a `FlexIter<'a, Borrowed<'a, [u32]>, u32>` into a
-//! `FlexIter<'static, Owned<'static, [u32]>, u32>`.
-//! 
-//! If you understood that, then you should have no problem understanding the
-//! constructor for a borrowing `FlexIter`:
 //!
-//! ```ignore 
+//! You can see that these implementations are complely rote: we give an
+//! `Owning` type which is the same as `Self` but with `S` replaced by
+//! `S::Owning`, and `to_owning` and `into_owning` methods which simply apply
+//! the same method to each of their fields.
+//!
+//! Now we give a constructor for a borrowing iterator, which realizes
+//! `StaticCow<[E]>` with `Borrowed<'b, [E]>`.
+//!
+//! ```ignore
 //! impl<'b, E> FlexIter<'b, Borrowed<'b, [E]>, E> {
 //!     fn new(slice: &'b [E]) -> FlexIter<'b, Borrowed<'b, [E]>, E> {
 //!         FlexIter {
@@ -194,20 +170,20 @@
 //!     }
 //! }
 //! ```
-//! 
+//!
 //! And now we can implement `Iterator`:
-//! 
+//!
 //! ```ignore
-//! impl<'a, 'o, S, E> Iterator for FlexIter<'a, S, E>
+//! impl<S, E> Iterator for FlexIter<S, E>
 //! where
-//!     E: 'o + Clone,
-//!     S: StaticCow<'a, 'o, [E]>,
+//!     E: Clone,
+//!     S: StaticCow<[E]>,
 //! {
 //!     type Item = E;
 
 //!     fn next(&mut self) -> Option<Self::Item> {
 //!         // This is here to show that we can also access `inner` generically
-//!         // through its `Deref<Target=[E]>` implementation, without having to 
+//!         // through its `Deref<Target=[E]>` implementation, without having to
 //!         // match on `mut_if_owned()`.
 //!         assert!(self.index <= self.inner.len());
 //!
@@ -240,9 +216,9 @@
 //!     }
 //! }
 //! ```
-//! 
+//!
 //! And now let's see it in action:
-//! 
+//!
 //! ```ignore
 //! fn main() {
 //!     let numbers = vec![1, 2, 3, 4, 5];
@@ -261,7 +237,7 @@
 //!     }
 //! }
 //! ```
-//! 
+//!
 //! Running this, we get the expected result:
 //! ```text
 //! Borrowing:
@@ -272,7 +248,7 @@
 //! 2
 //! 1
 //! ```
-//! 
+//!
 //! This example is also available as `examples/flex_iter.rs` in the sources of
 //! this crate.
 
@@ -280,7 +256,6 @@
 #![no_std]
 extern crate alloc;
 use alloc::borrow::{Borrow, BorrowMut, Cow, ToOwned};
-use core::marker::PhantomData;
 use core::ops::{Deref, DerefMut};
 
 ///A generalization of [`ToOwned`].
@@ -295,22 +270,16 @@ use core::ops::{Deref, DerefMut};
 /// `Owning = Owned` and `to_owning = to_owned`. User-defined types which
 /// implement `ToOwning` but not `ToOwned` typically should do so by calling
 /// `.to_owning()` on all their fields.
-///
-/// `ToOwning's` lifetime parameter `'o` is the lifetime of the *owning* type.
-/// In most circumstances this can be `'static`. This is only not the case if
-/// you have a `ToOwning` implementation that takes ownership of only some of
-/// its contents, while others continue to have constrained lifetime.
-pub trait ToOwning<'o> {
+pub trait ToOwning {
     /// The resulting type after obtaining ownership of `self`'s contents.
-    type Owning: 'o;
+    type Owning;
     /// Creates an object which owns its contents from one which borrows them.
     fn to_owning(&self) -> Self::Owning;
 }
 
-impl<'o, B> ToOwning<'o> for B
+impl<B> ToOwning for B
 where
     B: ToOwned + ?Sized,
-    B::Owned: 'o,
 {
     type Owning = B::Owned;
 
@@ -326,14 +295,14 @@ where
 /// `into_owning` is the identity function. User-defined types which implement
 /// `IntoOwning` but not [`Clone`] typically should do so by calling
 /// `into_owning()` on all their fields.
-pub trait IntoOwning<'o>: ToOwning<'o> + Sized {
+pub trait IntoOwning: ToOwning + Sized {
     /// Converts an object which owns its contents into one which borrows them.
     fn into_owning(self) -> Self::Owning;
 }
 
-impl<'o, B> IntoOwning<'o> for B
+impl<B> IntoOwning for B
 where
-    B: 'o + Clone,
+    B: Clone,
 {
     #[inline]
     fn into_owning(self) -> Self::Owning {
@@ -347,15 +316,12 @@ where
 /// [`StaticCow`] is [`std::borrow::Cow`](Cow) lifted to the type level. While
 /// `Cow` is an enum, `StaticCow` is a trait. While `Cow::Borrowed` and
 /// `Cow::Owned` are enum variants, this crate's [`Borrowed`] and [`Owned`] are
-/// tuple structs which implement `StaticCow` (so also does `Cow`). So instead
-/// of having a struct with a field `field: Cow<'a, B>`, where `B: ''o`, you can
-/// declare that field as `field: S` and let `S` be a generic parameter `S:
-/// StaticCow<'a, 'o, B>`. Then, wherever the ownedness of `S` is known at
-/// compile-time, the compiler can generate an appropriately-specialized version
-/// of the function.
-pub trait StaticCow<'o, B>: Deref<Target = B> + IntoOwning<'o>
+/// tuple structs which implement `StaticCow` (so also does `Cow`). oS instead
+/// of having a struct with a field `field: Cow<'a, B>`, you can declare that
+/// field as `field: S` and let `S` be a generic parameter `S: StaticCow<B>`
+pub trait StaticCow<B>: Deref<Target = B> + IntoOwning
 where
-    B: 'o + ToOwned + ?Sized,
+    B: ToOwned + ?Sized,
 {
     /// Returns either an immutable reference to an object that is borrowed, or
     /// a mutable reference to one which is owned.
@@ -384,7 +350,10 @@ where
     }
 
     /// Converts `self` into its dynamic equivalent as a [`Cow`].
-    fn into_cow<'a>(self) -> Cow<'a, B> where Self: 'a, 'a: 'o;
+    fn into_cow<'a>(self) -> Cow<'a, B>
+    where
+        Self: 'a,
+        Self::Owning: 'a;
 
     /// Converts `self` into a `B::Owned`, cloning only if necessary.
     fn into_owned(self) -> B::Owned;
@@ -410,11 +379,10 @@ where
 pub struct Borrowed<'b, B: ?Sized>(pub &'b B);
 
 /// A [`StaticCow`] implementation which wraps an owned type.
-//pub struct Owned<'o, B>(pub B::Owning) where B: ToOwning<'o> + ?Sized;
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Owned<'o, B>(pub B::Owning)
+pub struct Owned<B>(pub B::Owning)
 where
-    B: ToOwning<'o> + ?Sized;
+    B: ToOwning + ?Sized;
 
 impl<'b, B: ?Sized> AsRef<B> for Borrowed<'b, B> {
     fn as_ref(&self) -> &B {
@@ -437,11 +405,11 @@ impl<'b, B: ?Sized> Deref for Borrowed<'b, B> {
     }
 }
 
-impl<'b, 'o, B> ToOwning<'o> for Borrowed<'b, B>
+impl<'b, B> ToOwning for Borrowed<'b, B>
 where
-    B: 'o + ToOwning<'o> + ?Sized,
+    B: ToOwning + ?Sized,
 {
-    type Owning = Owned<'o, B>;
+    type Owning = Owned<B>;
 
     #[inline]
     fn to_owning(&self) -> Self::Owning {
@@ -449,9 +417,9 @@ where
     }
 }
 
-impl<'b, 'o, B> IntoOwning<'o> for Borrowed<'b, B>
+impl<'b, B> IntoOwning for Borrowed<'b, B>
 where
-    B: 'o + ToOwning<'o> + ?Sized,
+    B: ToOwning + ?Sized,
 {
     #[inline]
     fn into_owning(self) -> Self::Owning {
@@ -459,9 +427,9 @@ where
     }
 }
 
-impl<'b, 'o, B> StaticCow<'o, B> for Borrowed<'b, B>
+impl<'b, B> StaticCow<B> for Borrowed<'b, B>
 where
-    B: 'o + ToOwned + ?Sized,
+    B: ToOwned + ?Sized,
 {
     #[inline]
     fn is_owned(&self) -> bool {
@@ -473,7 +441,11 @@ where
         MutIfOwned::Const(self.0)
     }
     #[inline]
-    fn into_cow<'a>(self) -> Cow<'a, B> where Self: 'a{
+    fn into_cow<'a>(self) -> Cow<'a, B>
+    where
+        Self: 'a,
+        Self::Owning: 'a,
+    {
         Cow::Borrowed(self.0)
     }
 
@@ -482,9 +454,9 @@ where
     }
 }
 
-impl<'o, B> Deref for Owned<'o, B>
+impl<B> Deref for Owned<B>
 where
-    B: ToOwning<'o> + ?Sized,
+    B: ToOwning + ?Sized,
     B::Owning: Borrow<B>,
 {
     type Target = B;
@@ -495,9 +467,9 @@ where
     }
 }
 
-impl<'o, B> DerefMut for Owned<'o, B>
+impl<B> DerefMut for Owned<B>
 where
-    B: ToOwning<'o> + ?Sized,
+    B: ToOwning + ?Sized,
     B::Owning: BorrowMut<B>,
 {
     #[inline]
@@ -506,9 +478,9 @@ where
     }
 }
 
-impl<'o, B> ToOwning<'o> for Owned<'o, B>
+impl<B> ToOwning for Owned<B>
 where
-    B: 'o + ToOwning<'o> + ?Sized,
+    B: ToOwning + ?Sized,
     B::Owning: Borrow<B>,
 {
     type Owning = Self;
@@ -519,9 +491,9 @@ where
     }
 }
 
-impl<'o, B> IntoOwning<'o> for Owned<'o, B>
+impl<B> IntoOwning for Owned<B>
 where
-    B: 'o + ToOwning<'o> + ?Sized,
+    B: ToOwning + ?Sized,
     B::Owning: Borrow<B>,
 {
     #[inline]
@@ -530,9 +502,9 @@ where
     }
 }
 
-impl<'o, B> StaticCow<'o, B> for Owned<'o, B>
+impl<B> StaticCow<B> for Owned<B>
 where
-    B: 'o + ToOwned + ?Sized,
+    B: ToOwned + ?Sized,
 {
     #[inline]
     fn is_owned(&self) -> bool {
@@ -545,7 +517,11 @@ where
     }
 
     #[inline]
-    fn into_cow<'a> (self) -> Cow<'a, B> where Self: 'a {
+    fn into_cow<'a>(self) -> Cow<'a, B>
+    where
+        Self: 'a,
+        Self::Owning: 'a,
+    {
         Cow::Owned(self.0)
     }
 
@@ -555,10 +531,9 @@ where
     }
 }
 
-impl<'a, 'o, B> StaticCow<'o, B> for Cow<'a, B>
+impl<'a, B> StaticCow<B> for Cow<'a, B>
 where
-    'a: 'o,
-    B: 'o + ToOwned + ?Sized,
+    B: 'a + ToOwned + ?Sized,
 {
     #[inline]
     fn is_owned(&self) -> bool {
@@ -576,7 +551,10 @@ where
         }
     }
     #[inline]
-    fn into_cow<'b>(self) -> Cow<'b, B> where Self: 'b {
+    fn into_cow<'b>(self) -> Cow<'b, B>
+    where
+        Self: 'b,
+    {
         self
     }
 
@@ -597,12 +575,12 @@ where
 /// ToOwned` so that they can rely on having `B::Owned : Borrow<B>`.
 ///
 /// `Idempotent` has weaker requirements, so its capabilities are necessarily
-/// weaker as well, and it does not inherit from `Deref`. [`ToOwning`]`<'o>`
-/// places no constraints other than `'o` on `Owning`, which means that as far
-/// as the type system is concerned, `.into_owning()` is just a completely
-/// arbitrary conversion. So, you can't do anything useful with a type that
-/// might be `T` or might be `T::Owning` but you don't know which, because they
-/// don't promise to have any traits in common.
+/// weaker as well, and it does not inherit from `Deref`. [`ToOwning`]
+/// places no constraints on `Owning` which means that as far as the type system
+/// is concerned, `.into_owning()` is just a completely arbitrary conversion.
+/// So, you can't do anything useful with a type that might be `T` or might be
+/// `T::Owning` but you don't know which, because they don't promise to have any
+/// traits in common.
 ///
 /// `Idempotent` puts back just enough information that it can be a useful
 /// bound:
@@ -617,16 +595,16 @@ where
 /// [`Keep`]`<T>`, which holds a `T::Owning`; and by [`ChangeOrKeep`]`<T>` which
 /// might hold either, determined at runtime. Calling `.to_owning()` or
 /// `.into_owning()` on an `Idempotent<T>` always gives a `Keep<T>`.
-pub trait Idempotent<'o, T>: 'o + IntoOwning<'o, Owning = Keep<'o, T>>
+pub trait Idempotent<T>: IntoOwning<Owning = Keep<T>>
 where
-    T: ToOwning<'o>,
-    T::Owning: ToOwning<'o, Owning = T::Owning>,
+    T: ToOwning,
+    T::Owning: ToOwning<Owning = T::Owning>,
 {
     /// Get a reference to either a `T` or a `T::Owning`.
-    fn to_ref(&self) -> IdemRef<'_, 'o, T>;
+    fn to_ref(&self) -> IdemRef<'_, T>;
 
     /// Get a mutable reference to either a `T` or a `T::Owning`.
-    fn to_mut(&mut self) -> IdemMut<'_, 'o, T>;
+    fn to_mut(&mut self) -> IdemMut<'_, T>;
 
     /// Converts `self` into a `T::Owning`; equivalent to `into_owning().0`.
     #[inline]
@@ -637,9 +615,9 @@ where
 
 /// Provides an inmutable reference to either a `T` or a `T::Owning`.
 #[derive(Debug, PartialEq, Eq)]
-pub enum IdemRef<'a, 'o, T>
+pub enum IdemRef<'a, T>
 where
-    T: ToOwning<'o>,
+    T: ToOwning,
 {
     /// Provides a mutable reference to a `T`.
     Change(&'a T),
@@ -649,9 +627,9 @@ where
 
 /// Provides a mutable reference to either a `T` or a `T::Owning`.
 #[derive(Debug, PartialEq, Eq)]
-pub enum IdemMut<'a, 'o, T>
+pub enum IdemMut<'a, T>
 where
-    T: ToOwning<'o>,
+    T: ToOwning,
 {
     /// Provides a mutable reference to a `T`.
     Change(&'a mut T),
@@ -678,14 +656,14 @@ where
 /// something whose generic bounds require a `Clone` implementation, wrapping it
 /// with `Keep` can be a convenient solution.
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub struct Keep<'o, T>(pub T::Owning)
+pub struct Keep<T>(pub T::Owning)
 where
-    T: ToOwning<'o>;
+    T: ToOwning;
 
 /// An [`Idempotent`] implementation whose owning-ness is determined at runtime.
-pub enum ChangeOrKeep<'o, T>
+pub enum ChangeOrKeep<T>
 where
-    T: ToOwning<'o>,
+    T: ToOwning,
 {
     /// A `T` that has not yet been transformed.
     Change(T),
@@ -711,44 +689,44 @@ impl<T> DerefMut for Change<T> {
     }
 }
 
-impl<'o, T> ToOwning<'o> for Change<T>
+impl<T> ToOwning for Change<T>
 where
-    T: 'o + ToOwning<'o>,
+    T: ToOwning,
 {
-    type Owning = Keep<'o, T>;
+    type Owning = Keep<T>;
 
     fn to_owning(&self) -> Self::Owning {
         Keep(self.0.to_owning())
     }
 }
 
-impl<'o, T> IntoOwning<'o> for Change<T>
+impl<T> IntoOwning for Change<T>
 where
-    T: 'o + IntoOwning<'o>,
+    T: IntoOwning,
 {
     fn into_owning(self) -> Self::Owning {
         Keep(self.0.into_owning())
     }
 }
 
-impl<'o, T> Idempotent<'o, T> for Change<T>
+impl<T> Idempotent<T> for Change<T>
 where
-    T: 'o + IntoOwning<'o>,
-    T::Owning: ToOwning<'o, Owning = T::Owning>,
+    T: IntoOwning,
+    T::Owning: ToOwning<Owning = T::Owning>,
 {
     #[inline(always)]
-    fn to_ref(&self) -> IdemRef<'_, 'o, T> {
+    fn to_ref(&self) -> IdemRef<'_, T> {
         IdemRef::Change(&self.0)
     }
     #[inline(always)]
-    fn to_mut(&mut self) -> IdemMut<'_, 'o, T> {
+    fn to_mut(&mut self) -> IdemMut<'_, T> {
         IdemMut::Change(&mut self.0)
     }
 }
 
-impl<'o, T> Deref for Keep<'o, T>
+impl<T> Deref for Keep<T>
 where
-    T: ToOwning<'o>,
+    T: ToOwning,
 {
     type Target = T::Owning;
 
@@ -758,9 +736,9 @@ where
     }
 }
 
-impl<'o, T> DerefMut for Keep<'o, T>
+impl<T> DerefMut for Keep<T>
 where
-    T: ToOwning<'o>,
+    T: ToOwning,
 {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -768,10 +746,10 @@ where
     }
 }
 
-impl<'o, T> Clone for Keep<'o, T>
+impl<T> Clone for Keep<T>
 where
-    T: ToOwning<'o>,
-    T::Owning: ToOwning<'o, Owning = T::Owning>,
+    T: ToOwning,
+    T::Owning: ToOwning<Owning = T::Owning>,
 {
     #[inline]
     fn clone(&self) -> Self {
@@ -779,28 +757,28 @@ where
     }
 }
 
-impl<'o, T> Idempotent<'o, T> for Keep<'o, T>
+impl<T> Idempotent<T> for Keep<T>
 where
-    T: 'o + IntoOwning<'o>,
-    T::Owning: ToOwning<'o, Owning = T::Owning>,
+    T: IntoOwning,
+    T::Owning: ToOwning<Owning = T::Owning>,
 {
     #[inline(always)]
-    fn to_ref(&self) -> IdemRef<'_, 'o, T> {
+    fn to_ref(&self) -> IdemRef<'_, T> {
         IdemRef::Keep(&self.0)
     }
 
     #[inline(always)]
-    fn to_mut(&mut self) -> IdemMut<'_, 'o, T> {
+    fn to_mut(&mut self) -> IdemMut<'_, T> {
         IdemMut::Keep(&mut self.0)
     }
 }
 
-impl<'o, T> ToOwning<'o> for ChangeOrKeep<'o, T>
+impl<T> ToOwning for ChangeOrKeep<T>
 where
-    T: 'o + ToOwning<'o>,
-    T::Owning: ToOwning<'o, Owning = T::Owning>,
+    T: ToOwning,
+    T::Owning: ToOwning<Owning = T::Owning>,
 {
-    type Owning = Keep<'o, T>;
+    type Owning = Keep<T>;
 
     fn to_owning(&self) -> Self::Owning {
         match self {
@@ -810,10 +788,10 @@ where
     }
 }
 
-impl<'o, T> IntoOwning<'o> for ChangeOrKeep<'o, T>
+impl<T> IntoOwning for ChangeOrKeep<T>
 where
-    T: 'o + IntoOwning<'o>,
-    T::Owning: ToOwning<'o, Owning = T::Owning>,
+    T: IntoOwning,
+    T::Owning: ToOwning<Owning = T::Owning>,
 {
     fn into_owning(self) -> Self::Owning {
         match self {
@@ -823,76 +801,23 @@ where
     }
 }
 
-impl<'o, T> Idempotent<'o, T> for ChangeOrKeep<'o, T>
+impl<T> Idempotent<T> for ChangeOrKeep<T>
 where
-    T: 'o + IntoOwning<'o>,
-    T::Owning: ToOwning<'o, Owning = T::Owning>,
+    T: IntoOwning,
+    T::Owning: ToOwning<Owning = T::Owning>,
 {
-    fn to_ref(&self) -> IdemRef<'_, 'o, T> {
+    fn to_ref(&self) -> IdemRef<'_, T> {
         match self {
             ChangeOrKeep::Change(o) => IdemRef::Change(o),
             ChangeOrKeep::Keep(o) => IdemRef::Keep(o),
         }
     }
 
-    fn to_mut(&mut self) -> IdemMut<'_, 'o, T> {
+    fn to_mut(&mut self) -> IdemMut<'_, T> {
         match self {
             ChangeOrKeep::Change(o) => IdemMut::Change(o),
             ChangeOrKeep::Keep(o) => IdemMut::Keep(o),
         }
-    }
-}
-
-/// A zero-sized type which implements [`IntoOwning`].
-/// 
-/// <div style="max-width: 20em; margin-left: auto; margin-right: auto;">
-/// <img src="https://raw.githubusercontent.com/dfoxfranke/static-cow/10cffdd130d62af2ee0c437bc06500cfe8123417/static-cow/images/cow_phantom.webp" alt="Cow phantom"/>
-/// </div>
-///
-/// Structures with fields that are generic over [`StaticCow`]`<'a, B>` often
-/// have no fields that directly mention `'a` or `B`, so they need add a phantom
-/// in order to placate the type checker, and the structure's
-/// [`to_owning`](ToOwning::to_owning) and
-/// [`into_owning`](IntoOwning::into_owning) methods will need to change the
-/// phantom's lifetime parameter. `CowPhantom` will do the right thing in this
-/// respect so that you can simply call `to_owning`/`into_owning` on it just
-/// like you would all the other fields in your structure.
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct CowPhantom<'a, B>
-where
-    B: ?Sized,
-{
-    _phantom: PhantomData<&'a B>,
-}
-
-impl<'a, B> Default for CowPhantom<'a, B>
-where
-    B: 'a + ?Sized,
-{
-    fn default() -> Self {
-        CowPhantom {
-            _phantom: PhantomData::default(),
-        }
-    }
-}
-
-impl<'a, 'o, B> ToOwning<'o> for CowPhantom<'a, B>
-where
-    B: 'o + ?Sized,
-{
-    type Owning = CowPhantom<'o, B>;
-
-    fn to_owning(&self) -> Self::Owning {
-        CowPhantom::default()
-    }
-}
-
-impl<'a, 'o, B> IntoOwning<'o> for CowPhantom<'a, B>
-where
-    B: 'o + ?Sized,
-{
-    fn into_owning(self) -> Self::Owning {
-        CowPhantom::default()
     }
 }
 
@@ -907,9 +832,9 @@ where
 /// generic over `Idempotent<T>` and give it a `T::Owning`, because that will
 /// result in a `Keep<T::Owning>` when what you want is a `Keep<T>`. In this
 /// context you should use `Keep`'s primitive constructor instead.
-pub fn keep<'o, T>(o: T) -> Keep<'o, T>
+pub fn keep<T>(o: T) -> Keep<T>
 where
-    T: ToOwning<'o, Owning = T>,
+    T: ToOwning<Owning = T>,
 {
     Keep(o)
 }
